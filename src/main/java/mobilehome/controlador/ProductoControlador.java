@@ -46,7 +46,14 @@ public class ProductoControlador {
 	// Trae una lista de todos los productos
 	@GetMapping("/productos")
 	public List<Producto> listarProductos() {
-		return productoRepositorio.findAll();
+		List<Producto> productosListados = productoRepositorio.findAll();
+		List<Producto> productos = new ArrayList<>();
+		for (Producto producto : productosListados) {
+			if (producto.getEsPersonalizado() == false) {
+				productos.add(producto);
+			}
+		}
+		return productos;
 	}
 	
 	// Obtiene una lista de los productos por categoria
@@ -78,18 +85,35 @@ public class ProductoControlador {
 	
 	// Se registra la compra de un producto
 	@PostMapping("/productos/producto-detalle/compra")
-	public ResponseEntity<Producto> registrarCompra(@RequestBody RequestPayload payload) {
-		// Se obtiene el usuario y producto
+	public boolean registrarCompra(@RequestBody RequestPayload payload) {
+		// Se obtienen los datos necesarios
 		Usuario usuario = usuarioRepositorio.findById(payload.getUsuario().getId())
 				.orElseThrow(() -> new ResourceNotFoundException("Error usuario!"));
 		Producto producto = productoRepositorio.findById(payload.getProducto().getId())
 				.orElseThrow(() -> new ResourceNotFoundException("Error producto!"));
-		// Se crea el registro del usuario_producto
-		Usuario_Producto usuarioProducto = new Usuario_Producto();
-		usuarioProducto.setUsuario(usuario);
-		usuarioProducto.setProducto(producto);
-		usuarioProducto.setFechaCompra(LocalDate.now());
-		return ResponseEntity.ok(usuarioProductoRepositorio.save(usuarioProducto).getProducto());
+		// Se valida si el usuario ya tiene el producto y se registra el usuario_producto
+		boolean productoYaComprado = false;
+		for (Usuario_Producto up : usuarioProductoRepositorio.findAll()) {
+			if (usuario.getId() == up.getUsuario().getId() && producto.getId() == up.getProducto().getId()) {
+				productoYaComprado = true;
+				break;
+			}
+		}
+		if (productoYaComprado == false) {
+			Usuario_Producto usuarioProducto = new Usuario_Producto();
+			usuarioProducto.setUsuario(usuario);
+			usuarioProducto.setProducto(producto);
+			usuarioProducto.setFechaCompra(LocalDate.now());
+			usuarioProductoRepositorio.save(usuarioProducto);
+		}
+		return productoYaComprado;
+	}
+	
+	@GetMapping("/productos/productos-usuario/{id}")
+	public List<Usuario_Producto> obtenerProductosDeUsuario(@PathVariable Long id) {
+		Usuario usuario = usuarioRepositorio.findById(id)
+				.orElseThrow(() -> new ResourceNotFoundException("Error usuario!"));
+		return usuarioProductoRepositorio.findByUsuario(usuario);
 	}
 	
 }
